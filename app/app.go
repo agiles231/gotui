@@ -238,7 +238,7 @@ func (a *App) handleResize() {
 		a.onResize(a, width, height)
 	}
 
-	a.render()
+	a.forceRender()
 }
 
 // handleEvent processes an input event
@@ -277,6 +277,25 @@ func (a *App) render() {
 
 	// Render to terminal
 	a.screen.Render()
+	a.screen.Flush()
+}
+
+// forceRender renders the entire screen regardless of changes
+// Used after resize to clear artifacts from the previous terminal size
+func (a *App) forceRender() {
+	if a.screen == nil || a.root == nil {
+		return
+	}
+
+	// Clear screen
+	a.screen.Clear()
+
+	// Render root widget
+	bounds := layout.NewRect(0, 0, a.screen.Width(), a.screen.Height())
+	a.root.Render(a.screen.Buffer(), bounds)
+
+	// Force render all cells to terminal
+	a.screen.ForceRender()
 	a.screen.Flush()
 }
 

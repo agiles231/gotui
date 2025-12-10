@@ -43,7 +43,7 @@ func NewDemoApp() *DemoApp {
 		app:        app.New(),
 		tabs:       []string{"List", "Table", "Progress", "Form", "About"},
 		currentTab: 0,
-		statusText: "Press Tab to switch panels, Ctrl+Q to quit",
+		statusText: "Press ←/→ to switch panels, Ctrl+Q to quit",
 	}
 
 	// Create list widget
