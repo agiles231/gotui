@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/agiles231/gotui/app"
@@ -30,6 +31,7 @@ type DemoApp struct {
 	currentTab  int
 	list        *widget.List
 	table       *widget.Table
+	searchAndResults *widget.SearchAndResults
 	progress    *widget.Progress
 	spinner     *widget.Spinner
 	form        *widget.Form
@@ -41,7 +43,7 @@ type DemoApp struct {
 func NewDemoApp() *DemoApp {
 	d := &DemoApp{
 		app:        app.New(),
-		tabs:       []string{"List", "Table", "Progress", "Form", "About"},
+		tabs:       []string{"List", "Table", "Search and Results", "Progress", "Form", "About"},
 		currentTab: 0,
 		statusText: "Press ←/→ to switch panels, Ctrl+Q to quit",
 	}
@@ -79,6 +81,35 @@ func NewDemoApp() *DemoApp {
 		}).
 		SetHeight(8).
 		SetShowHeader(true)
+
+	// Create search and results widget
+	searchResultsTable := widget.NewTable().
+		SetColumns([]widget.TableColumn{
+			{Title: "ID", Width: 5},
+			{Title: "Name", Flex: 2},
+			{Title: "Status", Flex: 1},
+		}).
+		SetRows([][]string{
+			{"1", "Alice", "Active"},
+			{"2", "Bob", "Inactive"},
+			{"3", "Charlie", "Active"},
+			{"4", "Diana", "Pending"},
+			{"5", "Eve", "Active"},
+		})
+	search := widget.NewSearch().SetPlaceholder("Search")
+	search.SetOnSubmit(func(value string) {
+		rows := d.table.Rows()
+		resultRows := [][]string{}
+		for _, row := range rows {
+			if strings.Contains(strings.ToLower(row[1]), strings.ToLower(value)) {
+				resultRows = append(resultRows, row)
+			}
+		}
+		searchResultsTable.SetRows(resultRows)
+	})
+	d.searchAndResults = widget.NewSearchAndResults()
+		d.searchAndResults.SetSearch(search)
+		d.searchAndResults.SetTable(searchResultsTable)
 
 	// Create progress widget
 	d.progress = widget.NewProgress().
@@ -165,10 +196,12 @@ func (d *DemoApp) Render(buf *screen.Buffer, bounds layout.Rect) {
 	case 1:
 		d.renderTableTab(buf, contentBounds)
 	case 2:
-		d.renderProgressTab(buf, contentBounds)
+		d.renderSearchAndResultsTab(buf, contentBounds)
 	case 3:
-		d.renderFormTab(buf, contentBounds)
+		d.renderProgressTab(buf, contentBounds)
 	case 4:
+		d.renderFormTab(buf, contentBounds)
+	case 5:
 		d.renderAboutTab(buf, contentBounds)
 	}
 
@@ -211,6 +244,15 @@ func (d *DemoApp) renderTableTab(buf *screen.Buffer, bounds layout.Rect) {
 	// Table
 	tableBounds := layout.NewRect(bounds.X, bounds.Y+2, bounds.Width, bounds.Height-2)
 	d.table.Render(buf, tableBounds)
+}
+
+func (d *DemoApp) renderSearchAndResultsTab(buf *screen.Buffer, bounds layout.Rect) {
+	style := terminal.DefaultStyle()
+
+	// Title
+	buf.DrawString(bounds.X, bounds.Y, "Search and Results:", style.WithBold())
+	searchAndResultsBounds := layout.NewRect(bounds.X, bounds.Y+2, bounds.Width, bounds.Height-2)
+	d.searchAndResults.Render(buf, searchAndResultsBounds)
 }
 
 func (d *DemoApp) renderProgressTab(buf *screen.Buffer, bounds layout.Rect) {
@@ -318,6 +360,8 @@ func (d *DemoApp) HandleEvent(event input.Event) bool {
 		return d.list.HandleEvent(event)
 	case 1:
 		return d.table.HandleEvent(event)
+	case 2:
+		return d.searchAndResults.HandleEvent(event)
 	case 3:
 		return d.form.HandleEvent(event)
 	}
@@ -337,6 +381,8 @@ func (d *DemoApp) updateFocus() {
 		d.list.SetFocused(true)
 	case 1:
 		d.table.SetFocused(true)
+	case 2:
+		d.searchAndResults.SetFocused(true)
 	case 3:
 		d.form.SetFocused(true)
 	}
