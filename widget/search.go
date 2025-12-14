@@ -12,6 +12,9 @@ type Search struct {
 	placeholder string
 	value       string
 	cursor      int
+	helpItems   []string
+	help        *Table
+	helpVisible bool
 	onChange    func(string)
 	onSubmit    func(string)
 	style       terminal.Style
@@ -21,7 +24,13 @@ func NewSearch() *Search {
 	s := &Search{
 		BaseWidget: NewBaseWidget(),
 		style: terminal.DefaultStyle(),
+		helpVisible: true,
 	}
+	return s
+}
+
+func (s *Search) SetHelpItems(helpItems []string) *Search {
+	s.helpItems = helpItems
 	return s
 }
 
@@ -45,6 +54,49 @@ func (s *Search) SetOnSubmit(onSubmit func(string)) *Search {
 	return s
 }
 
+func (s *Search) getHelp(width int) *Table {
+	if s.help == nil {
+		s.help = NewTable()
+		s.help.SetShowHeader(false)
+		s.help.SetShowBorder(false)
+		s.help.SetStyle(s.style)
+		s.help.SetHeaderStyle(s.style)
+		s.help.SetSelectedStyle(s.style)
+		s.help.SetColumnBorders(false)
+		s.help.SetRowBorders(false)
+	}
+	const numColumns = 3
+	splitWidth := width / numColumns
+	columns := make([]TableColumn, numColumns)
+	for i := 0; i < numColumns; i++ {
+		columns[i] = TableColumn{Title: "", Width: splitWidth - 1}
+	}
+	s.help.SetColumns(columns)
+	numRows := getNumRows(len(s.helpItems), numColumns)
+	rows := make([][]string, numRows)
+	for i := 0; i < numRows; i++ {
+		rows[i] = make([]string, numColumns)
+		for j := 0; j < numColumns; j++ {
+			if i*numColumns+j < len(s.helpItems) {
+				rows[i][j] = s.helpItems[i*numColumns+j]
+			} else {
+				rows[i][j] = ""
+			}
+		}
+	}
+	s.help.SetRows(rows)
+	return s.help
+}
+
+func getNumRows(numItems int, numColumns int) int {
+	return (numItems + numColumns - 1) / numColumns
+}
+
+func (s *Search) SetHelpVisible(visible bool) *Search {
+	s.helpVisible = visible
+	return s
+}
+
 func (s *Search) SetStyle(style terminal.Style) *Search {
 	s.style = style
 	return s
@@ -56,17 +108,33 @@ func (s *Search) Render(buf *screen.Buffer, bounds layout.Rect) {
 		return
 	}
 
-	// border
-	buf.DrawBox(bounds.X, bounds.Y, bounds.Width, bounds.Height, s.style)
+	// inset bounds for inner content
 	bounds = bounds.InsetAll(1)
+	// layout search and help
+	flexLayout := layout.NewVFlex()
+	flexSearch := layout.NewFixedChild(3)
+	flexHelp := layout.NewFlexChild(10)
+	rects := flexLayout.Layout(bounds, []layout.FlexChild{
+		flexSearch,
+		flexHelp,
+	})
+	searchBounds := rects[0]
+	helpBounds := rects[1]
 
+	// draw search box
+	buf.DrawBox(searchBounds.X, searchBounds.Y, searchBounds.Width, searchBounds.Height, s.style)
+	searchBounds = searchBounds.InsetAll(1)
 	// placeholder or value
-	if s.value == "" {
-		buf.DrawString(bounds.X, bounds.Y, s.placeholder, s.style)
-	} else {
-		buf.DrawString(bounds.X, bounds.Y, s.value, s.style)
+	content := s.value
+	if content == "" {
+		content = s.placeholder
 	}
+	buf.DrawString(searchBounds.X, searchBounds.Y, content, s.style)
 
+	if s.helpVisible {
+		s.help = s.getHelp(helpBounds.X)
+		s.help.Render(buf, helpBounds)
+	}
 }
 
 func (s *Search) HandleEvent(event input.Event) bool {

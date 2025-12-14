@@ -33,10 +33,16 @@ func (s *SearchAndResults) SetTable(table *Table) *SearchAndResults {
 
 
 func (s *SearchAndResults) Render(buf *screen.Buffer, bounds layout.Rect) {
-	search_height := 5
-	search_bounds := layout.NewRect(bounds.X, bounds.Y, bounds.Width, search_height)
-	results_height := bounds.Height - search_height
-	results_bounds := layout.NewRect(bounds.X, bounds.Y + search_height, bounds.Width, results_height)
+	search_height := 12
+	vFlex := layout.NewVFlex().WithGap(2)
+	searchFlex := layout.NewFixedChild(search_height)
+	resultsFlex := layout.NewFlexChild(10)
+	rects := vFlex.Layout(bounds, []layout.FlexChild{
+		searchFlex,
+		resultsFlex,
+	})
+	search_bounds := rects[0]
+	results_bounds := rects[1]
 	s.search.Render(buf, search_bounds.InsetAll(1))
 	s.results.Render(buf, results_bounds.InsetAll(1))
 }

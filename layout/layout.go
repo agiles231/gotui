@@ -97,10 +97,7 @@ func (f *Flex) Layout(container Rect, children []FlexChild) []Rect {
 			allocated[i] = size
 			remaining -= size
 		} else {
-			flexTotal += child.Flex
-			if child.Flex == 0 {
-				flexTotal++ // Default flex factor of 1
-			}
+			flexTotal += max(1, child.Flex)
 		}
 	}
 

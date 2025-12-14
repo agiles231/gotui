@@ -25,6 +25,8 @@ type Table struct {
 	height         int
 	showHeader     bool
 	showBorder     bool
+	columnBorders  bool
+	rowBorders     bool
 	style          terminal.Style
 	headerStyle    terminal.Style
 	selectedStyle  terminal.Style
@@ -41,8 +43,22 @@ func NewTable() *Table {
 		style:         terminal.DefaultStyle(),
 		headerStyle:   terminal.DefaultStyle().WithBold(),
 		selectedStyle: terminal.DefaultStyle().WithReverse(),
+		columnBorders: true,
+		rowBorders: true,
 	}
 	t.SetInteractive(true)
+	return t
+}
+
+// SetColumnBorders enables or disables column borders
+func (t *Table) SetColumnBorders(show bool) *Table {
+	t.columnBorders = show
+	return t
+}
+
+// SetRowBorders enables or disables row borders
+func (t *Table) SetRowBorders(show bool) *Table {
+	t.rowBorders = show
 	return t
 }
 
@@ -252,23 +268,33 @@ func (t *Table) drawRow(buf *screen.Buffer, x, y int, widths []int, cells []stri
 		currentX += width
 
 		// Draw separator
-		if i < len(widths)-1 {
-			buf.Set(currentX, y, screen.NewCell('│', style))
-			currentX++
+		separator := '*'
+		if t.rowBorders {
+			separator = '|'
+		}
+		if t.columnBorders {
+			if i < len(widths)-1 {
+				buf.Set(currentX, y, screen.NewCell(separator, style))
+				currentX++
+			}
 		}
 	}
 }
 
 func (t *Table) drawSeparator(buf *screen.Buffer, x, y int, widths []int) {
 	currentX := x
+	separator := '*'
+	if t.rowBorders {
+		separator = '-'
+	}
 	for i, width := range widths {
 		for dx := 0; dx < width; dx++ {
-			buf.Set(currentX+dx, y, screen.NewCell('─', t.style))
+			buf.Set(currentX+dx, y, screen.NewCell(separator, t.style))
 		}
 		currentX += width
 
 		if i < len(widths)-1 {
-			buf.Set(currentX, y, screen.NewCell('┼', t.style))
+			buf.Set(currentX, y, screen.NewCell(separator, t.style))
 			currentX++
 		}
 	}

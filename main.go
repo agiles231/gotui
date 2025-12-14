@@ -106,10 +106,17 @@ func NewDemoApp() *DemoApp {
 			}
 		}
 		searchResultsTable.SetRows(resultRows)
+	}).
+	SetHelpItems([]string{
+		"/items : Search items",
+		"/item-specs : Search item specifications",
+		"/storage : Search storage",
+		"/storage-specs : Search storage specs",
+		"/tags: Search tags",
 	})
 	d.searchAndResults = widget.NewSearchAndResults()
-		d.searchAndResults.SetSearch(search)
-		d.searchAndResults.SetTable(searchResultsTable)
+	d.searchAndResults.SetSearch(search)
+	d.searchAndResults.SetTable(searchResultsTable)
 
 	// Create progress widget
 	d.progress = widget.NewProgress().
@@ -142,7 +149,7 @@ func NewDemoApp() *DemoApp {
 			}
 			d.progress.SetValue(val)
 			d.spinner.Advance()
-			return d.currentTab == 2 // Only render if on progress tab
+			return d.currentTab == 3 // Only render if on progress tab
 		})
 
 	// Set initial focus
@@ -362,7 +369,7 @@ func (d *DemoApp) HandleEvent(event input.Event) bool {
 		return d.table.HandleEvent(event)
 	case 2:
 		return d.searchAndResults.HandleEvent(event)
-	case 3:
+	case 4:
 		return d.form.HandleEvent(event)
 	}
 
@@ -373,6 +380,7 @@ func (d *DemoApp) updateFocus() {
 	// Unfocus all
 	d.list.SetFocused(false)
 	d.table.SetFocused(false)
+	d.searchAndResults.SetFocused(false)
 	d.form.SetFocused(false)
 
 	// Focus current tab's widget
@@ -383,7 +391,7 @@ func (d *DemoApp) updateFocus() {
 		d.table.SetFocused(true)
 	case 2:
 		d.searchAndResults.SetFocused(true)
-	case 3:
+	case 4:
 		d.form.SetFocused(true)
 	}
 }
