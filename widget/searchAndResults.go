@@ -10,6 +10,8 @@ type SearchAndResults struct {
 	BaseWidget
 	search *Search
 	results *Table
+	searchFocused bool
+	resultsFocused bool
 }
 
 func NewSearchAndResults() *SearchAndResults {
@@ -18,6 +20,7 @@ func NewSearchAndResults() *SearchAndResults {
 		search: NewSearch(),
 		results: NewTable(),
 	}
+	s.interactive = true
 	return s
 }
 

@@ -114,7 +114,7 @@ func (ti *TextInput) Render(buf *screen.Buffer, bounds layout.Rect) {
 
 	// Draw background
 	for x := 0; x < width; x++ {
-		buf.Set(bounds.X+x, bounds.Y, screen.NewCell(' ', style))
+		buf.Set(bounds.X+x, bounds.Y, bounds.Z, screen.NewCell(' ', style))
 	}
 
 	// Get display text
@@ -139,7 +139,7 @@ func (ti *TextInput) Render(buf *screen.Buffer, bounds layout.Rect) {
 
 	if visibleStart < len(displayText) {
 		visible := displayText[visibleStart:visibleEnd]
-		buf.DrawStringClipped(bounds.X, bounds.Y, visible, style, width)
+		buf.DrawStringClipped(bounds.X, bounds.Y, bounds.Z, visible, style, width)
 	}
 
 	// Draw cursor if focused
@@ -154,7 +154,7 @@ func (ti *TextInput) Render(buf *screen.Buffer, bounds layout.Rect) {
 					cursorChar = ti.value[ti.cursor]
 				}
 			}
-			buf.Set(cursorX, bounds.Y, screen.NewCell(cursorChar, ti.cursorStyle))
+			buf.Set(cursorX, bounds.Y, bounds.Z, screen.NewCell(cursorChar, ti.cursorStyle))
 		}
 	}
 }

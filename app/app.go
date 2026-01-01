@@ -272,7 +272,7 @@ func (a *App) render() {
 	a.screen.Clear()
 
 	// Render root widget
-	bounds := layout.NewRect(0, 0, a.screen.Width(), a.screen.Height())
+	bounds := layout.NewRect(0, 0, 0, a.screen.Width(), a.screen.Height())
 	a.root.Render(a.screen.Buffer(), bounds)
 
 	// Render to terminal
@@ -291,7 +291,7 @@ func (a *App) forceRender() {
 	a.screen.Clear()
 
 	// Render root widget
-	bounds := layout.NewRect(0, 0, a.screen.Width(), a.screen.Height())
+	bounds := layout.NewRect(0, 0, 0, a.screen.Width(), a.screen.Height())
 	a.root.Render(a.screen.Buffer(), bounds)
 
 	// Force render all cells to terminal
@@ -347,18 +347,18 @@ func (l *simpleLayout) Render(buf *screen.Buffer, bounds layout.Rect) {
 
 	// Draw title bar
 	for x := 0; x < bounds.Width; x++ {
-		buf.Set(bounds.X+x, bounds.Y, screen.NewCell(' ', titleStyle))
+		buf.Set(bounds.X+x, bounds.Y, bounds.Z, screen.NewCell(' ', titleStyle))
 	}
 	titleX := (bounds.Width - len(l.title)) / 2
-	buf.DrawString(bounds.X+titleX, bounds.Y, l.title, titleStyle)
+	buf.DrawString(bounds.X+titleX, bounds.Y, bounds.Z, l.title, titleStyle)
 
 	// Draw status bar
 	statusY := bounds.Y + bounds.Height - 1
 	for x := 0; x < bounds.Width; x++ {
-		buf.Set(bounds.X+x, statusY, screen.NewCell(' ', statusStyle))
+		buf.Set(bounds.X+x, statusY, bounds.Z, screen.NewCell(' ', statusStyle))
 	}
 	if l.statusBar != nil {
-		buf.DrawString(bounds.X+1, statusY, *l.statusBar, statusStyle)
+		buf.DrawString(bounds.X+1, statusY, bounds.Z, *l.statusBar, statusStyle)
 	}
 
 	// Draw content
@@ -366,6 +366,7 @@ func (l *simpleLayout) Render(buf *screen.Buffer, bounds layout.Rect) {
 		contentBounds := layout.NewRect(
 			bounds.X,
 			bounds.Y+1,
+			bounds.Z,
 			bounds.Width,
 			bounds.Height-2,
 		)

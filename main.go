@@ -37,15 +37,18 @@ type DemoApp struct {
 	form        *widget.Form
 	textInput   *widget.TextInput
 	statusText  string
+	// Z-Order demo state
+	zOrderRedInFront bool
 }
 
 // NewDemoApp creates the demo application
 func NewDemoApp() *DemoApp {
 	d := &DemoApp{
 		app:        app.New(),
-		tabs:       []string{"List", "Table", "Search and Results", "Progress", "Form", "About"},
+		tabs:       []string{"List", "Table", "Search and Results", "Progress", "Form", "Z-Order", "About"},
 		currentTab: 0,
 		statusText: "Press ←/→ to switch panels, Ctrl+Q to quit",
+		zOrderRedInFront: true,
 	}
 
 	// Create list widget
@@ -175,7 +178,7 @@ func (d *DemoApp) Render(buf *screen.Buffer, bounds layout.Rect) {
 	// Draw title
 	title := "╔═══ GoTUI Demo ═══╗"
 	titleX := (bounds.Width - len(title)) / 2
-	buf.DrawString(titleX, bounds.Y, title, titleStyle)
+	buf.DrawString(titleX, bounds.Y, bounds.Z, title, titleStyle)
 
 	// Draw tabs
 	tabY := bounds.Y + 2
@@ -186,17 +189,17 @@ func (d *DemoApp) Render(buf *screen.Buffer, bounds layout.Rect) {
 		if i == d.currentTab {
 			style = activeTabStyle
 		}
-		buf.DrawString(tabX, tabY, tabText, style)
+		buf.DrawString(tabX, tabY, bounds.Z, tabText, style)
 		tabX += len(tabText) + 1
 	}
 
 	// Draw content area border
 	contentY := tabY + 2
 	contentHeight := bounds.Height - contentY - 2
-	buf.DrawBox(1, contentY, bounds.Width-2, contentHeight, borderStyle)
+	buf.DrawBox(1, contentY, bounds.Z, bounds.Width-2, contentHeight, borderStyle)
 
 	// Draw content
-	contentBounds := layout.NewRect(2, contentY+1, bounds.Width-4, contentHeight-2)
+	contentBounds := layout.NewRect(2, contentY+1, bounds.Z, bounds.Width-4, contentHeight-2)
 	switch d.currentTab {
 	case 0:
 		d.renderListTab(buf, contentBounds)
@@ -209,47 +212,52 @@ func (d *DemoApp) Render(buf *screen.Buffer, bounds layout.Rect) {
 	case 4:
 		d.renderFormTab(buf, contentBounds)
 	case 5:
+		d.renderZOrderTab(buf, contentBounds)
+	case 6:
 		d.renderAboutTab(buf, contentBounds)
 	}
 
 	// Draw status bar
 	statusY := bounds.Y + bounds.Height - 1
 	for x := 0; x < bounds.Width; x++ {
-		buf.Set(x, statusY, screen.NewCell(' ', statusStyle))
+		buf.Set(x, statusY, bounds.Z, screen.NewCell(' ', statusStyle))
 	}
-	buf.DrawString(1, statusY, d.statusText, statusStyle)
+	buf.DrawString(1, statusY, bounds.Z, d.statusText, statusStyle)
 
 	// Draw help on right side of status bar
 	help := "←/→: Switch tabs | Ctrl+Q: Quit"
-	buf.DrawString(bounds.Width-len(help)-1, statusY, help, statusStyle)
+	if d.currentTab == 5 {
+		help = "SPACE: Swap z-order | ←/→: Switch tabs | Ctrl+Q: Quit"
+	}
+	buf.DrawString(bounds.Width-len(help)-1, statusY, bounds.Z, help, statusStyle)
 }
 
 func (d *DemoApp) renderListTab(buf *screen.Buffer, bounds layout.Rect) {
 	style := terminal.DefaultStyle()
 
 	// Title
-	buf.DrawString(bounds.X, bounds.Y, "Selectable List:", style.WithBold())
+	buf.DrawString(bounds.X, bounds.Y, bounds.Z, "Selectable List:", style.WithBold())
 
 	// List
-	listBounds := layout.NewRect(bounds.X, bounds.Y+2, bounds.Width/2, bounds.Height-2)
+	listBounds := layout.NewRect(bounds.X, bounds.Y+2, bounds.Z, bounds.Width/2, bounds.Height-2)
 	d.list.Render(buf, listBounds)
 
 	// Instructions
 	instX := bounds.X + bounds.Width/2 + 2
-	buf.DrawString(instX, bounds.Y+2, "Controls:", style.WithBold())
-	buf.DrawString(instX, bounds.Y+4, "↑/↓  Navigate items", style)
-	buf.DrawString(instX, bounds.Y+5, "Enter  Select item", style)
-	buf.DrawString(instX, bounds.Y+6, "PgUp/PgDn  Page navigation", style)
+	buf.DrawString(instX, bounds.Y+2, bounds.Z, "Controls:", style.WithBold())
+	buf.DrawString(instX, bounds.Y+4, bounds.Z, "↑/↓  Navigate items", style)
+	buf.DrawString(instX, bounds.Y+5, bounds.Z, "Enter  Select item", style)
+	buf.DrawString(instX, bounds.Y+6, bounds.Z, "PgUp/PgDn  Page navigation", style)
 }
 
 func (d *DemoApp) renderTableTab(buf *screen.Buffer, bounds layout.Rect) {
 	style := terminal.DefaultStyle()
 
 	// Title
-	buf.DrawString(bounds.X, bounds.Y, "Data Table:", style.WithBold())
+	buf.DrawString(bounds.X, bounds.Y, bounds.Z, "Data Table:", style.WithBold())
 
 	// Table
-	tableBounds := layout.NewRect(bounds.X, bounds.Y+2, bounds.Width, bounds.Height-2)
+	tableBounds := layout.NewRect(bounds.X, bounds.Y+2, bounds.Z, bounds.Width, bounds.Height-2)
 	d.table.Render(buf, tableBounds)
 }
 
@@ -257,8 +265,8 @@ func (d *DemoApp) renderSearchAndResultsTab(buf *screen.Buffer, bounds layout.Re
 	style := terminal.DefaultStyle()
 
 	// Title
-	buf.DrawString(bounds.X, bounds.Y, "Search and Results:", style.WithBold())
-	searchAndResultsBounds := layout.NewRect(bounds.X, bounds.Y+2, bounds.Width, bounds.Height-2)
+	buf.DrawString(bounds.X, bounds.Y, bounds.Z, "Search and Results:", style.WithBold())
+	searchAndResultsBounds := layout.NewRect(bounds.X, bounds.Y+2, bounds.Z, bounds.Width, bounds.Height-2)
 	d.searchAndResults.Render(buf, searchAndResultsBounds)
 }
 
@@ -266,36 +274,115 @@ func (d *DemoApp) renderProgressTab(buf *screen.Buffer, bounds layout.Rect) {
 	style := terminal.DefaultStyle()
 
 	// Title
-	buf.DrawString(bounds.X, bounds.Y, "Progress Indicators:", style.WithBold())
+	buf.DrawString(bounds.X, bounds.Y, bounds.Z, "Progress Indicators:", style.WithBold())
 
 	// Progress bar
-	buf.DrawString(bounds.X, bounds.Y+3, "Progress Bar:", style)
-	progressBounds := layout.NewRect(bounds.X, bounds.Y+4, bounds.Width, 1)
+	buf.DrawString(bounds.X, bounds.Y+3, bounds.Z, "Progress Bar:", style)
+	progressBounds := layout.NewRect(bounds.X, bounds.Y+4, bounds.Z, bounds.Width, 1)
 	d.progress.Render(buf, progressBounds)
 
 	// Spinner
-	buf.DrawString(bounds.X, bounds.Y+7, "Spinner:", style)
-	spinnerBounds := layout.NewRect(bounds.X, bounds.Y+8, bounds.Width, 1)
+	buf.DrawString(bounds.X, bounds.Y+7, bounds.Z, "Spinner:", style)
+	spinnerBounds := layout.NewRect(bounds.X, bounds.Y+8, bounds.Z, bounds.Width, 1)
 	d.spinner.Render(buf, spinnerBounds)
 
 	// Static progress bars at different values
-	buf.DrawString(bounds.X, bounds.Y+11, "Static Progress:", style)
+	buf.DrawString(bounds.X, bounds.Y+11, bounds.Z, "Static Progress:", style)
 	
 	staticProgress := widget.NewProgress().SetWidth(25)
 	for i, val := range []float64{0.25, 0.50, 0.75, 1.0} {
 		staticProgress.SetValue(val)
-		staticProgress.Render(buf, layout.NewRect(bounds.X, bounds.Y+12+i, bounds.Width, 1))
+		staticProgress.Render(buf, layout.NewRect(bounds.X, bounds.Y+12+i, bounds.Z, bounds.Width, 1))
 	}
 }
 
 func (d *DemoApp) renderFormTab(buf *screen.Buffer, bounds layout.Rect) {
-	formBounds := layout.NewRect(bounds.X, bounds.Y, 50, 8)
+	formBounds := layout.NewRect(bounds.X, bounds.Y, bounds.Z, 50, 8)
 	d.form.Render(buf, formBounds)
 
 	// Help text
 	style := terminal.DefaultStyle()
-	buf.DrawString(bounds.X, bounds.Y+10, "Press Tab to move between fields", style.WithDim())
-	buf.DrawString(bounds.X, bounds.Y+11, "Press Ctrl+Enter to submit", style.WithDim())
+	buf.DrawString(bounds.X, bounds.Y+10, bounds.Z, "Press Tab to move between fields", style.WithDim())
+	buf.DrawString(bounds.X, bounds.Y+11, bounds.Z, "Press Ctrl+Enter to submit", style.WithDim())
+}
+
+func (d *DemoApp) renderZOrderTab(buf *screen.Buffer, bounds layout.Rect) {
+	style := terminal.DefaultStyle()
+	
+	// Title
+	buf.DrawString(bounds.X, bounds.Y, bounds.Z, "Z-Order Demo:", style.WithBold())
+	buf.DrawString(bounds.X, bounds.Y+1, bounds.Z, "Press SPACE to swap which box is in front", style.WithDim())
+
+	// Define two overlapping boxes
+	// Red box (left side, partially overlapped)
+	redStyle := terminal.DefaultStyle().WithFG(terminal.ColorRed).WithBold()
+	redBgStyle := terminal.DefaultStyle().WithBG(terminal.ColorRed).WithFG(terminal.ColorWhite)
+	
+	// Blue box (right side, partially overlapped)
+	blueStyle := terminal.DefaultStyle().WithFG(terminal.ColorBlue).WithBold()
+	blueBgStyle := terminal.DefaultStyle().WithBG(terminal.ColorBlue).WithFG(terminal.ColorWhite)
+
+	// Box dimensions
+	boxWidth := 25
+	boxHeight := 10
+	
+	// Positions - overlapping by about 10 characters
+	redX := bounds.X + 2
+	redY := bounds.Y + 3
+	blueX := bounds.X + 17  // Overlaps red box
+	blueY := bounds.Y + 5   // Slightly lower
+
+	// Determine z-order based on state
+	var redZ, blueZ int
+	if d.zOrderRedInFront {
+		redZ = 1
+		blueZ = 0
+	} else {
+		redZ = 0
+		blueZ = 1
+	}
+
+	// Draw RED box
+	buf.DrawBox(redX, redY, redZ, boxWidth, boxHeight, redStyle)
+	// Fill interior
+	for y := 1; y < boxHeight-1; y++ {
+		for x := 1; x < boxWidth-1; x++ {
+			buf.Set(redX+x, redY+y, redZ, screen.NewCell(' ', redBgStyle))
+		}
+	}
+	// Draw label
+	redLabel := "RED BOX"
+	buf.DrawString(redX+(boxWidth-len(redLabel))/2, redY+boxHeight/2, redZ, redLabel, redBgStyle.WithBold())
+	if d.zOrderRedInFront {
+		buf.DrawString(redX+(boxWidth-len("(FRONT)"))/2, redY+boxHeight/2+1, redZ, "(FRONT)", redBgStyle)
+	} else {
+		buf.DrawString(redX+(boxWidth-len("(BACK)"))/2, redY+boxHeight/2+1, redZ, "(BACK)", redBgStyle)
+	}
+
+	// Draw BLUE box
+	buf.DrawBox(blueX, blueY, blueZ, boxWidth, boxHeight, blueStyle)
+	// Fill interior
+	for y := 1; y < boxHeight-1; y++ {
+		for x := 1; x < boxWidth-1; x++ {
+			buf.Set(blueX+x, blueY+y, blueZ, screen.NewCell(' ', blueBgStyle))
+		}
+	}
+	// Draw label
+	blueLabel := "BLUE BOX"
+	buf.DrawString(blueX+(boxWidth-len(blueLabel))/2, blueY+boxHeight/2, blueZ, blueLabel, blueBgStyle.WithBold())
+	if !d.zOrderRedInFront {
+		buf.DrawString(blueX+(boxWidth-len("(FRONT)"))/2, blueY+boxHeight/2+1, blueZ, "(FRONT)", blueBgStyle)
+	} else {
+		buf.DrawString(blueX+(boxWidth-len("(BACK)"))/2, blueY+boxHeight/2+1, blueZ, "(BACK)", blueBgStyle)
+	}
+
+	// Status indicator
+	statusY := bounds.Y + bounds.Height - 2
+	if d.zOrderRedInFront {
+		buf.DrawString(bounds.X, statusY, bounds.Z, "Current: RED is in front (z=1), BLUE is behind (z=0)", style)
+	} else {
+		buf.DrawString(bounds.X, statusY, bounds.Z, "Current: BLUE is in front (z=1), RED is behind (z=0)", style)
+	}
 }
 
 func (d *DemoApp) renderAboutTab(buf *screen.Buffer, bounds layout.Rect) {
@@ -332,7 +419,7 @@ func (d *DemoApp) renderAboutTab(buf *screen.Buffer, bounds layout.Rect) {
 		if i == 0 {
 			s = highlightStyle.WithBold()
 		}
-		buf.DrawString(bounds.X, bounds.Y+i, line, s)
+		buf.DrawString(bounds.X, bounds.Y+i, bounds.Z, line, s)
 	}
 }
 
@@ -371,6 +458,12 @@ func (d *DemoApp) HandleEvent(event input.Event) bool {
 		return d.searchAndResults.HandleEvent(event)
 	case 4:
 		return d.form.HandleEvent(event)
+	case 5:
+		// Z-Order tab - handle spacebar to swap z-order
+		if keyEvent.Key == input.KeyRune && keyEvent.Rune == ' ' {
+			d.zOrderRedInFront = !d.zOrderRedInFront
+			return true
+		}
 	}
 
 	return false

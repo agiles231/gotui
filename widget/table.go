@@ -160,7 +160,7 @@ func (t *Table) Render(buf *screen.Buffer, bounds layout.Rect) {
 
 	innerBounds := bounds
 	if t.showBorder {
-		buf.DrawBox(bounds.X, bounds.Y, bounds.Width, bounds.Height, t.style)
+		buf.DrawBox(bounds.X, bounds.Y, bounds.Z, bounds.Width, bounds.Height, t.style)
 		innerBounds = bounds.Inset(1, 1, 1, 1)
 	}
 
@@ -171,10 +171,10 @@ func (t *Table) Render(buf *screen.Buffer, bounds layout.Rect) {
 
 	// Draw header
 	if t.showHeader {
-		t.drawRow(buf, innerBounds.X, y, colWidths, t.getColumnTitles(), t.headerStyle)
+		t.drawRow(buf, innerBounds.X, y, innerBounds.Z, colWidths, t.getColumnTitles(), t.headerStyle)
 		y++
 		// Draw separator
-		t.drawSeparator(buf, innerBounds.X, y, colWidths)
+		t.drawSeparator(buf, innerBounds.X, y, innerBounds.Z, colWidths)
 		y++
 	}
 
@@ -190,7 +190,7 @@ func (t *Table) Render(buf *screen.Buffer, bounds layout.Rect) {
 		if rowIndex == t.selectedRow && t.focused {
 			style = t.selectedStyle
 		}
-		t.drawRow(buf, innerBounds.X, y+i, colWidths, t.rows[rowIndex], style)
+		t.drawRow(buf, innerBounds.X, y+i, innerBounds.Z, colWidths, t.rows[rowIndex], style)
 	}
 }
 
@@ -241,12 +241,12 @@ func (t *Table) calculateColumnWidths(totalWidth int) []int {
 	return widths
 }
 
-func (t *Table) drawRow(buf *screen.Buffer, x, y int, widths []int, cells []string, style terminal.Style) {
+func (t *Table) drawRow(buf *screen.Buffer, x, y, z int, widths []int, cells []string, style terminal.Style) {
 	currentX := x
 	for i, width := range widths {
 		// Clear cell
 		for dx := 0; dx < width; dx++ {
-			buf.Set(currentX+dx, y, screen.NewCell(' ', style))
+			buf.Set(currentX+dx, y, z, screen.NewCell(' ', style))
 		}
 
 		// Draw cell content
@@ -262,7 +262,7 @@ func (t *Table) drawRow(buf *screen.Buffer, x, y int, widths []int, cells []stri
 				offset = layout.Align(len(text), width, t.columns[i].Align)
 			}
 
-			buf.DrawString(currentX+offset, y, text, style)
+			buf.DrawString(currentX+offset, y, z, text, style)
 		}
 
 		currentX += width
@@ -274,14 +274,14 @@ func (t *Table) drawRow(buf *screen.Buffer, x, y int, widths []int, cells []stri
 		}
 		if t.columnBorders {
 			if i < len(widths)-1 {
-				buf.Set(currentX, y, screen.NewCell(separator, style))
+				buf.Set(currentX, y, z, screen.NewCell(separator, style))
 				currentX++
 			}
 		}
 	}
 }
 
-func (t *Table) drawSeparator(buf *screen.Buffer, x, y int, widths []int) {
+func (t *Table) drawSeparator(buf *screen.Buffer, x, y, z int, widths []int) {
 	currentX := x
 	separator := '*'
 	if t.rowBorders {
@@ -289,12 +289,12 @@ func (t *Table) drawSeparator(buf *screen.Buffer, x, y int, widths []int) {
 	}
 	for i, width := range widths {
 		for dx := 0; dx < width; dx++ {
-			buf.Set(currentX+dx, y, screen.NewCell(separator, t.style))
+			buf.Set(currentX+dx, y, z, screen.NewCell(separator, t.style))
 		}
 		currentX += width
 
 		if i < len(widths)-1 {
-			buf.Set(currentX, y, screen.NewCell(separator, t.style))
+			buf.Set(currentX, y, z, screen.NewCell(separator, t.style))
 			currentX++
 		}
 	}

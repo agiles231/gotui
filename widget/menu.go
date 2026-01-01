@@ -143,8 +143,8 @@ func (m *Menu) Render(buf *screen.Buffer, bounds layout.Rect) {
 
 	innerBounds := bounds
 	if m.showBorder {
-		buf.DrawBox(bounds.X, bounds.Y, width, height, m.style)
-		innerBounds = layout.NewRect(bounds.X+1, bounds.Y+1, width-2, len(m.items))
+		buf.DrawBox(bounds.X, bounds.Y, bounds.Z, width, height, m.style)
+		innerBounds = layout.NewRect(bounds.X+1, bounds.Y+1, bounds.Z, width-2, len(m.items))
 	}
 
 	for i, item := range m.items {
@@ -161,7 +161,7 @@ func (m *Menu) Render(buf *screen.Buffer, bounds layout.Rect) {
 
 		// Clear line
 		for x := 0; x < innerBounds.Width; x++ {
-			buf.Set(innerBounds.X+x, innerBounds.Y+i, screen.NewCell(' ', style))
+			buf.Set(innerBounds.X+x, innerBounds.Y+i, innerBounds.Z, screen.NewCell(' ', style))
 		}
 
 		// Draw label
@@ -169,17 +169,17 @@ func (m *Menu) Render(buf *screen.Buffer, bounds layout.Rect) {
 		if len(label) > innerBounds.Width {
 			label = label[:innerBounds.Width]
 		}
-		buf.DrawString(innerBounds.X, innerBounds.Y+i, label, style)
+		buf.DrawString(innerBounds.X, innerBounds.Y+i, innerBounds.Z, label, style)
 
 		// Draw shortcut if present
 		if item.Shortcut != "" && innerBounds.Width > len(label)+len(item.Shortcut)+2 {
 			shortcutX := innerBounds.X + innerBounds.Width - len(item.Shortcut)
-			buf.DrawString(shortcutX, innerBounds.Y+i, item.Shortcut, style.WithDim())
+			buf.DrawString(shortcutX, innerBounds.Y+i, innerBounds.Z, item.Shortcut, style.WithDim())
 		}
 
 		// Draw submenu indicator
 		if len(item.Children) > 0 {
-			buf.Set(innerBounds.X+innerBounds.Width-1, innerBounds.Y+i, screen.NewCell('▶', style))
+			buf.Set(innerBounds.X+innerBounds.Width-1, innerBounds.Y+i, innerBounds.Z, screen.NewCell('▶', style))
 		}
 	}
 }

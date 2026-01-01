@@ -26,6 +26,7 @@ func NewSearch() *Search {
 		style: terminal.DefaultStyle(),
 		helpVisible: true,
 	}
+	s.interactive = true
 	return s
 }
 
@@ -122,14 +123,14 @@ func (s *Search) Render(buf *screen.Buffer, bounds layout.Rect) {
 	helpBounds := rects[1]
 
 	// draw search box
-	buf.DrawBox(searchBounds.X, searchBounds.Y, searchBounds.Width, searchBounds.Height, s.style)
+	buf.DrawBox(searchBounds.X, searchBounds.Y, searchBounds.Z, searchBounds.Width, searchBounds.Height, s.style)
 	searchBounds = searchBounds.InsetAll(1)
 	// placeholder or value
 	content := s.value
 	if content == "" {
 		content = s.placeholder
 	}
-	buf.DrawString(searchBounds.X, searchBounds.Y, content, s.style)
+	buf.DrawString(searchBounds.X, searchBounds.Y, searchBounds.Z, content, s.style)
 
 	if s.helpVisible {
 		s.help = s.getHelp(helpBounds.X)

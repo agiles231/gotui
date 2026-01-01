@@ -78,7 +78,7 @@ func (t *Text) Render(buf *screen.Buffer, bounds layout.Rect) {
 			x += bounds.Width - len(line)
 		}
 
-		buf.DrawStringClipped(x, bounds.Y+i, line, t.style, bounds.Width)
+		buf.DrawStringClipped(x, bounds.Y+i, bounds.Z, line, t.style, bounds.Width)
 	}
 }
 

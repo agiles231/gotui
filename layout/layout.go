@@ -137,6 +137,7 @@ func (f *Flex) Layout(container Rect, children []FlexChild) []Rect {
 			results[i] = NewRect(
 				container.X+offset,
 				container.Y,
+				container.Z,
 				size,
 				container.Height,
 			)
@@ -144,6 +145,7 @@ func (f *Flex) Layout(container Rect, children []FlexChild) []Rect {
 			results[i] = NewRect(
 				container.X,
 				container.Y+offset,
+				container.Z,
 				container.Width,
 				size,
 			)
@@ -230,6 +232,7 @@ func (g *Grid) Layout(container Rect) [][]Rect {
 			cells[row][col] = NewRect(
 				inner.X+col*(cellWidth+g.ColGap),
 				inner.Y+row*(cellHeight+g.RowGap),
+				inner.Z,
 				cellWidth,
 				cellHeight,
 			)

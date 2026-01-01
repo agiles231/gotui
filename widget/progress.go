@@ -121,7 +121,7 @@ func (p *Progress) Render(buf *screen.Buffer, bounds layout.Rect) {
 
 	// Draw label if present
 	if p.label != "" {
-		buf.DrawString(x, y, p.label+": ", p.style)
+		buf.DrawString(x, y, bounds.Z, p.label+": ", p.style)
 		x += len(p.label) + 2
 		width -= len(p.label) + 2
 	}
@@ -144,12 +144,12 @@ func (p *Progress) Render(buf *screen.Buffer, bounds layout.Rect) {
 		} else {
 			cell = screen.NewCell(p.emptyChar, p.style)
 		}
-		buf.Set(x+i, y, cell)
+		buf.Set(x+i, y, bounds.Z, cell)
 	}
 
 	// Draw percentage
 	if p.showPercent {
-		buf.DrawString(x+width, y, percentText, p.style)
+		buf.DrawString(x+width, y, bounds.Z, percentText, p.style)
 	}
 }
 
@@ -222,10 +222,10 @@ func (s *Spinner) Render(buf *screen.Buffer, bounds layout.Rect) {
 		return
 	}
 
-	buf.Set(bounds.X, bounds.Y, screen.NewCell(s.frames[s.current], s.style))
+	buf.Set(bounds.X, bounds.Y, bounds.Z, screen.NewCell(s.frames[s.current], s.style))
 
 	if s.label != "" {
-		buf.DrawString(bounds.X+2, bounds.Y, s.label, s.style)
+		buf.DrawString(bounds.X+2, bounds.Y, bounds.Z, s.label, s.style)
 	}
 }
 

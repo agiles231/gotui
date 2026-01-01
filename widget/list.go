@@ -136,7 +136,7 @@ func (l *List) Render(buf *screen.Buffer, bounds layout.Rect) {
 
 	innerBounds := bounds
 	if l.showBorder {
-		buf.DrawBox(bounds.X, bounds.Y, bounds.Width, bounds.Height, l.style)
+		buf.DrawBox(bounds.X, bounds.Y, bounds.Z, bounds.Width, bounds.Height, l.style)
 		innerBounds = bounds.Inset(1, 1, 1, 1)
 	}
 
@@ -159,11 +159,11 @@ func (l *List) Render(buf *screen.Buffer, bounds layout.Rect) {
 
 		// Clear line
 		for x := 0; x < innerBounds.Width; x++ {
-			buf.Set(innerBounds.X+x, innerBounds.Y+i, screen.NewCell(' ', style))
+			buf.Set(innerBounds.X+x, innerBounds.Y+i, innerBounds.Z, screen.NewCell(' ', style))
 		}
 
 		// Draw item text
-		buf.DrawStringClipped(innerBounds.X, innerBounds.Y+i, item.Text, style, innerBounds.Width)
+		buf.DrawStringClipped(innerBounds.X, innerBounds.Y+i, innerBounds.Z, item.Text, style, innerBounds.Width)
 	}
 
 	// Draw scrollbar if needed
@@ -194,7 +194,7 @@ func (l *List) drawScrollbar(buf *screen.Buffer, bounds layout.Rect, visibleHeig
 			style = thumbStyle
 			char = '█'
 		}
-		buf.Set(scrollX, bounds.Y+y, screen.NewCell(char, style))
+		buf.Set(scrollX, bounds.Y+y, bounds.Z, screen.NewCell(char, style))
 	}
 }
 

@@ -134,7 +134,7 @@ func (f *Form) Render(buf *screen.Buffer, bounds layout.Rect) {
 		if f.title != "" {
 			height++
 		}
-		buf.DrawBox(bounds.X, bounds.Y, bounds.Width, height, f.style)
+		buf.DrawBox(bounds.X, bounds.Y, bounds.Z, bounds.Width, height, f.style)
 		innerBounds = bounds.Inset(1, 1, 1, 1)
 		y = innerBounds.Y
 	}
@@ -142,7 +142,7 @@ func (f *Form) Render(buf *screen.Buffer, bounds layout.Rect) {
 	// Draw title
 	if f.title != "" {
 		titleX := innerBounds.X + (innerBounds.Width-len(f.title))/2
-		buf.DrawString(titleX, y, f.title, f.labelStyle)
+		buf.DrawString(titleX, y, innerBounds.Z, f.title, f.labelStyle)
 		y++
 	}
 
@@ -154,12 +154,13 @@ func (f *Form) Render(buf *screen.Buffer, bounds layout.Rect) {
 			label = label[:f.labelWidth-2]
 		}
 		label += ": "
-		buf.DrawString(innerBounds.X, y+i, label, f.labelStyle)
+		buf.DrawString(innerBounds.X, y+i, innerBounds.Z, label, f.labelStyle)
 
 		// Calculate widget bounds
 		widgetBounds := layout.NewRect(
 			innerBounds.X+f.labelWidth,
 			y+i,
+			innerBounds.Z,
 			innerBounds.Width-f.labelWidth,
 			1,
 		)
