@@ -125,12 +125,31 @@ func (s *Search) Render(buf *screen.Buffer, bounds layout.Rect) {
 	// draw search box
 	buf.DrawBox(searchBounds.X, searchBounds.Y, searchBounds.Z, searchBounds.Width, searchBounds.Height, s.style)
 	searchBounds = searchBounds.InsetAll(1)
-	// placeholder or value
-	content := s.value
-	if content == "" {
-		content = s.placeholder
+	
+	// Determine what to display and style
+	displayStyle := s.style
+	showCursor := s.focused
+	
+	if s.value == "" && !s.focused {
+		// Show placeholder when empty and not focused
+		buf.DrawString(searchBounds.X, searchBounds.Y, searchBounds.Z, s.placeholder, s.style.WithDim())
+	} else {
+		// Draw the value
+		buf.DrawString(searchBounds.X, searchBounds.Y, searchBounds.Z, s.value, displayStyle)
 	}
-	buf.DrawString(searchBounds.X, searchBounds.Y, searchBounds.Z, content, s.style)
+	
+	// Draw cursor if focused
+	if showCursor {
+		cursorX := searchBounds.X + s.cursor
+		if cursorX < searchBounds.X+searchBounds.Width {
+			cursorStyle := s.style.WithReverse()
+			var cursorChar rune = ' '
+			if s.cursor < len(s.value) {
+				cursorChar = rune(s.value[s.cursor])
+			}
+			buf.Set(cursorX, searchBounds.Y, searchBounds.Z, screen.NewCell(cursorChar, cursorStyle))
+		}
+	}
 
 	if s.helpVisible {
 		s.help = s.getHelp(helpBounds.X)
@@ -153,20 +172,25 @@ func (s *Search) HandleEvent(event input.Event) bool {
 		if s.cursor == 0 {
 			return true
 		}
-		if s.cursor == len(s.value) {
+		if s.cursor >= len(s.value) {
 			s.value = s.value[:s.cursor-1]
 			s.cursor--
 			return true
 		}
 		s.value = s.value[:s.cursor-1] + s.value[s.cursor:]
+		s.cursor--
 		return true
 	}
 	if event_key.Key == input.KeyDelete {
-		s.value = s.value[:s.cursor] + s.value[s.cursor+1:]
+		if s.cursor < len(s.value) {
+			s.value = s.value[:s.cursor] + s.value[s.cursor+1:]
+		}
 		return true
 	}
 	if event_key.Key == input.KeyLeft {
-		s.cursor--
+		if s.cursor > 0 {
+			s.cursor--
+		}
 		return true
 	}
 	if event_key.Key == input.KeyRight {

@@ -47,7 +47,7 @@ func NewDemoApp() *DemoApp {
 		app:        app.New(),
 		tabs:       []string{"List", "Table", "Search and Results", "Progress", "Form", "Z-Order", "About"},
 		currentTab: 0,
-		statusText: "Press ←/→ to switch panels, Ctrl+Q to quit",
+		statusText: "Press Ctrl+←/→ to switch tabs, Ctrl+Q to quit",
 		zOrderRedInFront: true,
 	}
 
@@ -225,9 +225,9 @@ func (d *DemoApp) Render(buf *screen.Buffer, bounds layout.Rect) {
 	buf.DrawString(1, statusY, bounds.Z, d.statusText, statusStyle)
 
 	// Draw help on right side of status bar
-	help := "←/→: Switch tabs | Ctrl+Q: Quit"
+	help := "Ctrl+←/→: Switch tabs | Ctrl+Q: Quit"
 	if d.currentTab == 5 {
-		help = "SPACE: Swap z-order | ←/→: Switch tabs | Ctrl+Q: Quit"
+		help = "SPACE: Swap z-order | Ctrl+←/→: Switch tabs | Ctrl+Q: Quit"
 	}
 	buf.DrawString(bounds.Width-len(help)-1, statusY, bounds.Z, help, statusStyle)
 }
@@ -430,8 +430,8 @@ func (d *DemoApp) HandleEvent(event input.Event) bool {
 		return false
 	}
 
-	// Handle tab switching with left/right arrows
-	if keyEvent.Key == input.KeyLeft {
+	// Handle tab switching with Ctrl+Left/Right arrows
+	if keyEvent.Key == input.KeyLeft && keyEvent.IsCtrl() {
 		d.currentTab--
 		if d.currentTab < 0 {
 			d.currentTab = len(d.tabs) - 1
@@ -439,7 +439,7 @@ func (d *DemoApp) HandleEvent(event input.Event) bool {
 		d.updateFocus()
 		return true
 	}
-	if keyEvent.Key == input.KeyRight {
+	if keyEvent.Key == input.KeyRight && keyEvent.IsCtrl() {
 		d.currentTab++
 		if d.currentTab >= len(d.tabs) {
 			d.currentTab = 0

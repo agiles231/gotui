@@ -17,7 +17,9 @@ type FormField struct {
 type Form struct {
 	BaseWidget
 	fields        []FormField
+	buttons       []*Button
 	focusedField  int
+	focusedButton int // -1 means no button focused
 	labelWidth    int
 	style         terminal.Style
 	labelStyle    terminal.Style
@@ -29,10 +31,11 @@ type Form struct {
 // NewForm creates a new form widget
 func NewForm() *Form {
 	f := &Form{
-		BaseWidget: NewBaseWidget(),
-		labelWidth: 15,
-		style:      terminal.DefaultStyle(),
-		labelStyle: terminal.DefaultStyle().WithBold(),
+		BaseWidget:    NewBaseWidget(),
+		labelWidth:    15,
+		style:         terminal.DefaultStyle(),
+		labelStyle:    terminal.DefaultStyle().WithBold(),
+		focusedButton: -1, // No button focused initially
 	}
 	f.SetInteractive(true)
 	return f
@@ -66,6 +69,13 @@ func (f *Form) AddPasswordInput(label, placeholder string) *TextInput {
 	ti := NewTextInput().SetPlaceholder(placeholder).SetMask('*')
 	f.AddField(label, ti)
 	return ti
+}
+
+// AddButton adds a button to the form's button row
+func (f *Form) AddButton(label string, onPress func()) *Button {
+	btn := NewButton(label).OnPress(onPress)
+	f.buttons = append(f.buttons, btn)
+	return btn
 }
 
 // Fields returns the form fields
@@ -134,6 +144,9 @@ func (f *Form) Render(buf *screen.Buffer, bounds layout.Rect) {
 		if f.title != "" {
 			height++
 		}
+		if len(f.buttons) > 0 {
+			height += 2 // Extra row for buttons + spacing
+		}
 		buf.DrawBox(bounds.X, bounds.Y, bounds.Z, bounds.Width, height, f.style)
 		innerBounds = bounds.Inset(1, 1, 1, 1)
 		y = innerBounds.Y
@@ -168,11 +181,33 @@ func (f *Form) Render(buf *screen.Buffer, bounds layout.Rect) {
 		// Render widget
 		field.Widget.Render(buf, widgetBounds)
 	}
+
+	// Draw buttons row
+	if len(f.buttons) > 0 {
+		buttonY := y + len(f.fields) + 1 // Leave a blank line
+		buttonX := innerBounds.X
+		
+		for i, btn := range f.buttons {
+			btnWidth := btn.Size().Width
+			btnBounds := layout.NewRect(buttonX, buttonY, innerBounds.Z, btnWidth, 1)
+			
+			// Set button focus state
+			btn.SetFocused(f.focusedButton == i)
+			btn.Render(buf, btnBounds)
+			
+			buttonX += btnWidth + 2 // 2 spaces between buttons
+		}
+	}
 }
 
 // HandleEvent handles input events
 func (f *Form) HandleEvent(event input.Event) bool {
-	if !f.focused || len(f.fields) == 0 {
+	if !f.focused {
+		return false
+	}
+	
+	// Need at least fields or buttons
+	if len(f.fields) == 0 && len(f.buttons) == 0 {
 		return false
 	}
 
@@ -181,7 +216,7 @@ func (f *Form) HandleEvent(event input.Event) bool {
 		return false
 	}
 
-	// Handle tab/shift-tab for field navigation
+	// Handle tab/shift-tab for navigation
 	if keyEvent.Key == input.KeyTab {
 		if keyEvent.IsShift() {
 			f.focusPrev()
@@ -191,98 +226,265 @@ func (f *Form) HandleEvent(event input.Event) bool {
 		return true
 	}
 
-	// Handle up/down for field navigation
-	if keyEvent.Key == input.KeyUp {
-		f.focusPrev()
-		return true
-	}
-	if keyEvent.Key == input.KeyDown {
-		f.focusNext()
-		return true
-	}
-
-	// Handle submit (Ctrl+Enter or just Enter if on non-input field)
-	if keyEvent.Key == input.KeyEnter && keyEvent.IsCtrl() {
-		if f.onSubmit != nil {
-			f.onSubmit(f.Values())
+	// If on button row, use Left/Right for button navigation
+	if f.focusedButton >= 0 {
+		if keyEvent.Key == input.KeyLeft {
+			f.focusPrevButton()
+			return true
 		}
-		return true
+		if keyEvent.Key == input.KeyRight {
+			f.focusNextButton()
+			return true
+		}
+		// Up moves from buttons back to last field
+		if keyEvent.Key == input.KeyUp {
+			f.focusLastField()
+			return true
+		}
+		// Enter/Space triggers button
+		if keyEvent.Key == input.KeyEnter || (keyEvent.Key == input.KeyRune && keyEvent.Rune == ' ') {
+			btn := f.buttons[f.focusedButton]
+			return btn.HandleEvent(event)
+		}
+		// Consume Down arrow on buttons (nowhere to go)
+		if keyEvent.Key == input.KeyDown {
+			return true
+		}
 	}
 
-	// Pass event to focused field
-	if f.focusedField >= 0 && f.focusedField < len(f.fields) {
+	// If on a field, handle Up/Down for field navigation
+	if f.focusedButton < 0 && f.focusedField >= 0 {
+		if keyEvent.Key == input.KeyUp {
+			if f.focusedField > 0 {
+				f.focusPrevField()
+			}
+			return true // Consume even if at top
+		}
+		if keyEvent.Key == input.KeyDown {
+			if f.focusedField < len(f.fields)-1 {
+				f.focusNextField()
+			} else if len(f.buttons) > 0 {
+				// Move to first button
+				f.focusFirstButton()
+			}
+			return true
+		}
+		// Consume Left/Right in fields (let TextInput handle cursor, but don't propagate)
+		if keyEvent.Key == input.KeyLeft || keyEvent.Key == input.KeyRight {
+			// Pass to field widget for cursor movement
+			if f.focusedField >= 0 && f.focusedField < len(f.fields) {
+				f.fields[f.focusedField].Widget.HandleEvent(event)
+			}
+			return true // Always consume to prevent tab switching
+		}
+	}
+
+	// Pass other events to focused field
+	if f.focusedButton < 0 && f.focusedField >= 0 && f.focusedField < len(f.fields) {
 		return f.fields[f.focusedField].Widget.HandleEvent(event)
 	}
 
 	return false
 }
 
-func (f *Form) focusNext() {
-	if len(f.fields) == 0 {
+// focusNextButton moves focus to next button
+func (f *Form) focusNextButton() {
+	if len(f.buttons) == 0 {
 		return
 	}
+	if f.focusedButton >= 0 {
+		f.buttons[f.focusedButton].SetFocused(false)
+	}
+	f.focusedButton++
+	if f.focusedButton >= len(f.buttons) {
+		f.focusedButton = 0
+	}
+	f.buttons[f.focusedButton].SetFocused(true)
+}
 
-	// Unfocus current
+// focusPrevButton moves focus to previous button
+func (f *Form) focusPrevButton() {
+	if len(f.buttons) == 0 {
+		return
+	}
+	if f.focusedButton >= 0 {
+		f.buttons[f.focusedButton].SetFocused(false)
+	}
+	f.focusedButton--
+	if f.focusedButton < 0 {
+		f.focusedButton = len(f.buttons) - 1
+	}
+	f.buttons[f.focusedButton].SetFocused(true)
+}
+
+// focusFirstButton moves focus to first button
+func (f *Form) focusFirstButton() {
+	if len(f.buttons) == 0 {
+		return
+	}
+	// Unfocus current field
 	if f.focusedField >= 0 && f.focusedField < len(f.fields) {
 		f.fields[f.focusedField].Widget.SetFocused(false)
 	}
+	f.focusedField = -1
+	f.focusedButton = 0
+	f.buttons[0].SetFocused(true)
+}
 
-	// Find next interactive field
-	start := f.focusedField
-	for {
-		f.focusedField++
-		if f.focusedField >= len(f.fields) {
-			f.focusedField = 0
-		}
-		
-		if f.fields[f.focusedField].Widget.IsInteractive() {
-			break
-		}
-		
-		if f.focusedField == start {
-			break // No interactive fields
-		}
+// focusLastField moves focus from buttons back to last field
+func (f *Form) focusLastField() {
+	if len(f.fields) == 0 {
+		return
 	}
-
+	// Unfocus current button
+	if f.focusedButton >= 0 && f.focusedButton < len(f.buttons) {
+		f.buttons[f.focusedButton].SetFocused(false)
+	}
+	f.focusedButton = -1
+	f.focusedField = len(f.fields) - 1
 	f.fields[f.focusedField].Widget.SetFocused(true)
 }
 
-func (f *Form) focusPrev() {
+// focusNextField moves focus to next field
+func (f *Form) focusNextField() {
 	if len(f.fields) == 0 {
 		return
 	}
-
-	// Unfocus current
 	if f.focusedField >= 0 && f.focusedField < len(f.fields) {
 		f.fields[f.focusedField].Widget.SetFocused(false)
 	}
+	f.focusedField++
+	if f.focusedField >= len(f.fields) {
+		f.focusedField = len(f.fields) - 1
+	}
+	f.fields[f.focusedField].Widget.SetFocused(true)
+}
 
-	// Find previous interactive field
-	start := f.focusedField
-	for {
-		f.focusedField--
-		if f.focusedField < 0 {
-			f.focusedField = len(f.fields) - 1
-		}
-		
-		if f.fields[f.focusedField].Widget.IsInteractive() {
-			break
-		}
-		
-		if f.focusedField == start {
-			break // No interactive fields
-		}
+// focusPrevField moves focus to previous field
+func (f *Form) focusPrevField() {
+	if len(f.fields) == 0 {
+		return
+	}
+	if f.focusedField >= 0 && f.focusedField < len(f.fields) {
+		f.fields[f.focusedField].Widget.SetFocused(false)
+	}
+	f.focusedField--
+	if f.focusedField < 0 {
+		f.focusedField = 0
+	}
+	f.fields[f.focusedField].Widget.SetFocused(true)
+}
+
+func (f *Form) focusNext() {
+	totalFields := len(f.fields)
+	totalButtons := len(f.buttons)
+	
+	if totalFields == 0 && totalButtons == 0 {
+		return
 	}
 
-	f.fields[f.focusedField].Widget.SetFocused(true)
+	// Unfocus current field or button
+	if f.focusedButton >= 0 && f.focusedButton < totalButtons {
+		f.buttons[f.focusedButton].SetFocused(false)
+	} else if f.focusedField >= 0 && f.focusedField < totalFields {
+		f.fields[f.focusedField].Widget.SetFocused(false)
+	}
+
+	// Currently on a button?
+	if f.focusedButton >= 0 {
+		// Move to next button or wrap to first field
+		f.focusedButton++
+		if f.focusedButton >= totalButtons {
+			// Wrap to first field
+			f.focusedButton = -1
+			f.focusedField = 0
+			if totalFields > 0 {
+				f.fields[0].Widget.SetFocused(true)
+			}
+			return
+		}
+		f.buttons[f.focusedButton].SetFocused(true)
+		return
+	}
+
+	// Currently on a field - move to next field or first button
+	f.focusedField++
+	if f.focusedField >= totalFields {
+		// Move to buttons if any, otherwise wrap to first field
+		if totalButtons > 0 {
+			f.focusedField = -1
+			f.focusedButton = 0
+			f.buttons[0].SetFocused(true)
+			return
+		}
+		f.focusedField = 0
+	}
+	
+	if f.focusedField >= 0 && f.focusedField < totalFields {
+		f.fields[f.focusedField].Widget.SetFocused(true)
+	}
+}
+
+func (f *Form) focusPrev() {
+	totalFields := len(f.fields)
+	totalButtons := len(f.buttons)
+	
+	if totalFields == 0 && totalButtons == 0 {
+		return
+	}
+
+	// Unfocus current field or button
+	if f.focusedButton >= 0 && f.focusedButton < totalButtons {
+		f.buttons[f.focusedButton].SetFocused(false)
+	} else if f.focusedField >= 0 && f.focusedField < totalFields {
+		f.fields[f.focusedField].Widget.SetFocused(false)
+	}
+
+	// Currently on a button?
+	if f.focusedButton >= 0 {
+		// Move to previous button or wrap to last field
+		f.focusedButton--
+		if f.focusedButton < 0 {
+			// Wrap to last field
+			if totalFields > 0 {
+				f.focusedField = totalFields - 1
+				f.fields[f.focusedField].Widget.SetFocused(true)
+			} else {
+				// No fields, wrap to last button
+				f.focusedButton = totalButtons - 1
+				f.buttons[f.focusedButton].SetFocused(true)
+			}
+			return
+		}
+		f.buttons[f.focusedButton].SetFocused(true)
+		return
+	}
+
+	// Currently on a field - move to previous field or last button
+	f.focusedField--
+	if f.focusedField < 0 {
+		// Move to last button if any, otherwise wrap to last field
+		if totalButtons > 0 {
+			f.focusedButton = totalButtons - 1
+			f.buttons[f.focusedButton].SetFocused(true)
+			return
+		}
+		f.focusedField = totalFields - 1
+	}
+	
+	if f.focusedField >= 0 && f.focusedField < totalFields {
+		f.fields[f.focusedField].Widget.SetFocused(true)
+	}
 }
 
 // SetFocused sets focus state
 func (f *Form) SetFocused(focused bool) {
 	f.focused = focused
 	
-	// Focus/unfocus the current field
-	if f.focusedField >= 0 && f.focusedField < len(f.fields) {
+	// Focus/unfocus the current field or button
+	if f.focusedButton >= 0 && f.focusedButton < len(f.buttons) {
+		f.buttons[f.focusedButton].SetFocused(focused)
+	} else if f.focusedField >= 0 && f.focusedField < len(f.fields) {
 		f.fields[f.focusedField].Widget.SetFocused(focused)
 	}
 }
@@ -294,6 +496,9 @@ func (f *Form) Size() layout.Size {
 
 	if f.title != "" {
 		height++
+	}
+	if len(f.buttons) > 0 {
+		height += 2 // Spacing + button row
 	}
 	if f.showBorder {
 		width += 2
