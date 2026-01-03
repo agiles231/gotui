@@ -30,8 +30,11 @@ type Table struct {
 	style          terminal.Style
 	headerStyle    terminal.Style
 	selectedStyle  terminal.Style
+	rowStyleFunc   func(row int, data []string) terminal.Style // Optional row style callback
 	onSelect       func(row int)
 	onChange       func(row int)
+	showScrollBar  bool
+	scrollBarStyle terminal.Style
 }
 
 // NewTable creates a new table widget
@@ -60,6 +63,33 @@ func (t *Table) SetColumnBorders(show bool) *Table {
 func (t *Table) SetRowBorders(show bool) *Table {
 	t.rowBorders = show
 	return t
+}
+
+// SetRowStyleFunc sets a callback to provide custom styles for each row
+// The function receives the row index and row data, and returns the style to use
+func (t *Table) SetRowStyleFunc(fn func(row int, data []string) terminal.Style) *Table {
+	t.rowStyleFunc = fn
+	return t
+}
+
+// SetShowScrollBar enables or disables the scroll bar indicator
+func (t *Table) SetShowScrollBar(show bool) *Table {
+	t.showScrollBar = show
+	return t
+}
+
+// GetScrollInfo returns current scroll position info: (firstVisible, lastVisible, total)
+func (t *Table) GetScrollInfo() (int, int, int) {
+	total := len(t.rows)
+	if total == 0 {
+		return 0, 0, 0
+	}
+	first := t.offset + 1 // 1-indexed for display
+	last := t.offset + t.height
+	if last > total {
+		last = total
+	}
+	return first, last, total
 }
 
 // SetColumns sets the table columns
@@ -184,13 +214,32 @@ func (t *Table) Render(buf *screen.Buffer, bounds layout.Rect) {
 		visibleHeight -= 2
 	}
 
+	// Reserve space for scroll bar if enabled
+	contentWidth := innerBounds.Width
+	scrollBarX := innerBounds.X + innerBounds.Width - 1
+	if t.showScrollBar {
+		contentWidth -= 2 // Reserve space for scroll bar + separator
+		scrollBarX = innerBounds.X + contentWidth + 1
+	}
+
 	for i := 0; i < visibleHeight && i+t.offset < len(t.rows); i++ {
 		rowIndex := i + t.offset
+		rowData := t.rows[rowIndex]
+		
+		// Determine row style
 		style := t.style
+		if t.rowStyleFunc != nil {
+			style = t.rowStyleFunc(rowIndex, rowData)
+		}
 		if rowIndex == t.selectedRow && t.focused {
 			style = t.selectedStyle
 		}
-		t.drawRow(buf, innerBounds.X, y+i, innerBounds.Z, colWidths, t.rows[rowIndex], style)
+		t.drawRow(buf, innerBounds.X, y+i, innerBounds.Z, colWidths, rowData, style)
+	}
+
+	// Draw scroll bar if enabled and needed
+	if t.showScrollBar && len(t.rows) > visibleHeight {
+		t.drawScrollBar(buf, scrollBarX, y, innerBounds.Z, visibleHeight, len(t.rows), t.offset)
 	}
 }
 
@@ -297,6 +346,52 @@ func (t *Table) drawSeparator(buf *screen.Buffer, x, y, z int, widths []int) {
 			buf.Set(currentX, y, z, screen.NewCell(separator, t.style))
 			currentX++
 		}
+	}
+}
+
+// drawScrollBar draws a vertical scroll bar indicator
+func (t *Table) drawScrollBar(buf *screen.Buffer, x, y, z, height, totalRows, offset int) {
+	if height <= 0 || totalRows <= 0 {
+		return
+	}
+
+	scrollStyle := t.style.WithDim()
+	thumbStyle := t.style.WithReverse()
+
+	// Calculate thumb size and position
+	thumbSize := height * height / totalRows
+	if thumbSize < 1 {
+		thumbSize = 1
+	}
+	if thumbSize > height {
+		thumbSize = height
+	}
+
+	// Calculate thumb position
+	scrollRange := totalRows - height
+	if scrollRange <= 0 {
+		scrollRange = 1
+	}
+	thumbPos := (offset * (height - thumbSize)) / scrollRange
+	if thumbPos < 0 {
+		thumbPos = 0
+	}
+	if thumbPos+thumbSize > height {
+		thumbPos = height - thumbSize
+	}
+
+	// Draw the scroll bar track and thumb
+	for i := 0; i < height; i++ {
+		var ch rune
+		var style terminal.Style
+		if i >= thumbPos && i < thumbPos+thumbSize {
+			ch = '█' // Thumb
+			style = thumbStyle
+		} else {
+			ch = '░' // Track
+			style = scrollStyle
+		}
+		buf.Set(x, y+i, z, screen.NewCell(ch, style))
 	}
 }
 
