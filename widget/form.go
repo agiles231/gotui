@@ -120,11 +120,18 @@ func (f *Form) OnSubmit(fn func(values map[string]string)) *Form {
 }
 
 // Values returns a map of field labels to values
-func (f *Form) Values() map[string]string {
-	values := make(map[string]string)
+func (f *Form) Values() map[string][]string {
+	values := make(map[string][]string)
 	for _, field := range f.fields {
 		if ti, ok := field.Widget.(*TextInput); ok {
-			values[field.Label] = ti.Value()
+			values[field.Label] = []string{ti.Value()}
+		} else if li, ok := field.Widget.(*List); ok {
+			selectedSlice := li.SelectedItems()
+			valueSlice := make([]string, len(selectedSlice))
+			for i, val := range selectedSlice {
+				valueSlice[i] = val.Text
+			}
+			values[field.Label] = valueSlice
 		}
 	}
 	return values

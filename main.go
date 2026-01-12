@@ -66,7 +66,8 @@ func NewDemoApp() *DemoApp {
 		SetHeight(8).
 		OnSelect(func(i int, item widget.ListItem) {
 			d.statusText = fmt.Sprintf("Selected: %s", item.Text)
-		})
+		}).
+		SetCardinality(0)
 
 	// Create table widget
 	d.table = widget.NewTable().

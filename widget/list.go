@@ -5,6 +5,8 @@ import (
 	"github.com/agiles231/gotui/layout"
 	"github.com/agiles231/gotui/screen"
 	"github.com/agiles231/gotui/terminal"
+
+	"slices"
 )
 
 // ListItem represents an item in a list
@@ -17,10 +19,13 @@ type ListItem struct {
 type List struct {
 	BaseWidget
 	items         []ListItem
-	selected      int
 	offset        int // Scroll offset
+	cursor        int
+	selected      []int
+	cardinality   int
 	style         terminal.Style
 	selectedStyle terminal.Style
+	cursorStyle   terminal.Style
 	height        int
 	showBorder    bool
 	onSelect      func(index int, item ListItem)
@@ -32,22 +37,44 @@ func NewList() *List {
 	l := &List{
 		BaseWidget:    NewBaseWidget(),
 		style:         terminal.DefaultStyle(),
-		selectedStyle: terminal.DefaultStyle().WithReverse(),
+		selectedStyle: terminal.DefaultStyle().WithBG(terminal.ColorGreen),
+		cursorStyle:   terminal.DefaultStyle().WithReverse(),
 		height:        10,
+		cardinality:   1,
 	}
 	l.SetInteractive(true)
+	return l
+}
+
+func itemsEqual(l, r ListItem) bool {
+	return l.Text == r.Text && l.Value == r.Value
+}
+
+// SetCardinality sets the list cardinality (1 for single selectable value, N for N, 0 for infinite)
+func (l *List) SetCardinality(card int) *List {
+	l.cardinality = card
+	if l.cardinality == 0 {
+		return l
+	}
+	if len(l.selected) > l.cardinality {
+		l.selected = l.selected[:card]
+	}
 	return l
 }
 
 // SetItems sets the list items
 func (l *List) SetItems(items []ListItem) *List {
 	l.items = items
-	if l.selected >= len(items) {
-		l.selected = len(items) - 1
+	selectedItems := l.SelectedItems()
+	newSelected := make([]int, 0)
+	for i, sel := range selectedItems {
+		for _, item := range items {
+			if itemsEqual(*sel, item) {
+				newSelected = append(newSelected, l.selected[i])
+			}
+		}
 	}
-	if l.selected < 0 {
-		l.selected = 0
-	}
+	l.selected = newSelected
 	l.ensureVisible()
 	return l
 }
@@ -58,6 +85,16 @@ func (l *List) SetStrings(strings []string) *List {
 	for i, s := range strings {
 		items[i] = ListItem{Text: s, Value: s}
 	}
+	selectedItems := l.SelectedItems()
+	newSelected := make([]int, 0)
+	for i, sel := range selectedItems {
+		for _, item := range items {
+			if itemsEqual(*sel, item) {
+				newSelected = append(newSelected, l.selected[i])
+			}
+		}
+	}
+	l.selected = newSelected
 	return l.SetItems(items)
 }
 
@@ -66,20 +103,42 @@ func (l *List) Items() []ListItem {
 	return l.items
 }
 
-// Selected returns the selected index
-func (l *List) Selected() int {
+// Returns cursor position
+func (l *List) Cursor() int {
+	return l.cursor
+}
+
+// Selected returns the selected indexes
+func (l *List) Selected() []int {
 	return l.selected
 }
 
 // SelectedItem returns the selected item
-func (l *List) SelectedItem() *ListItem {
-	if l.selected >= 0 && l.selected < len(l.items) {
-		return &l.items[l.selected]
+func (l *List) SelectedItems() []*ListItem {
+	if l.selected != nil && len(l.selected) > 0 {
+		selectedItems := make([]*ListItem, len(l.selected))
+		for _, sel := range l.selected {
+			selectedItems = append(selectedItems, &l.items[sel])
+		}
+		return selectedItems
 	}
 	return nil
 }
+// // Selected returns the selected index
+// func (l *List) Selected() int {
+// 	return l.selected
+// }
+// 
+// // SelectedItem returns the selected item
+// func (l *List) SelectedItem() *ListItem {
+// 	if l.selected >= 0 && l.selected < len(l.items) {
+// 		return &l.items[l.selected]
+// 	}
+// 	return nil
+// }
 
 // Select sets the selected index
+// If cardinality is already reached, oldest selected is dropped
 func (l *List) Select(index int) *List {
 	if index < 0 {
 		index = 0
@@ -87,7 +146,19 @@ func (l *List) Select(index int) *List {
 	if index >= len(l.items) {
 		index = len(l.items) - 1
 	}
-	l.selected = index
+	alreadySelected, i := l.isIndexSelected(index)
+	if alreadySelected {
+		// unselect
+		l.selected = slices.Delete(l.selected, i, i + 1)
+		return l
+	}
+
+	if l.cardinality > 0 && len(l.selected) >= l.cardinality {
+		// we are at selection capacity
+		// Remove oldest selected and add new selected
+		l.selected = l.selected[1:len(l.selected)]
+	}
+	l.selected = append(l.selected, index)
 	l.ensureVisible()
 	return l
 }
@@ -107,6 +178,12 @@ func (l *List) SetStyle(style terminal.Style) *List {
 // SetSelectedStyle sets the selected item style
 func (l *List) SetSelectedStyle(style terminal.Style) *List {
 	l.selectedStyle = style
+	return l
+}
+
+// SetCursorStyle sets the cursor style
+func (l *List) SetCursorStyle(style terminal.Style) *List {
+	l.cursorStyle = style
 	return l
 }
 
@@ -153,9 +230,13 @@ func (l *List) Render(buf *screen.Buffer, bounds layout.Rect) {
 
 		item := l.items[itemIndex]
 		style := l.style
-		if itemIndex == l.selected && l.focused {
+		if itemIndex == l.cursor && l.focused {
+			style = l.cursorStyle
+		}
+		if selected, _ := l.isIndexSelected(itemIndex); selected {
 			style = l.selectedStyle
 		}
+		
 
 		// Clear line
 		for x := 0; x < innerBounds.Width; x++ {
@@ -170,6 +251,15 @@ func (l *List) Render(buf *screen.Buffer, bounds layout.Rect) {
 	if len(l.items) > visibleHeight {
 		l.drawScrollbar(buf, innerBounds, visibleHeight)
 	}
+}
+
+func (l *List) isIndexSelected(i int) (bool, int) {
+	for j, index := range l.selected {
+		if index == i {
+			return true, j
+		}
+	}
+	return false, 0
 }
 
 // drawScrollbar draws a scrollbar
@@ -231,8 +321,9 @@ func (l *List) HandleEvent(event input.Event) bool {
 		l.notifyChange()
 		return true
 	case input.KeyEnter:
-		if l.onSelect != nil && l.selected < len(l.items) {
-			l.onSelect(l.selected, l.items[l.selected])
+		if l.onSelect != nil && l.cursor < len(l.items) {
+			l.Select(l.cursor)
+			l.onSelect(l.cursor, l.items[l.cursor])
 		}
 		return true
 	}
@@ -241,51 +332,51 @@ func (l *List) HandleEvent(event input.Event) bool {
 }
 
 func (l *List) moveUp() {
-	if l.selected > 0 {
-		l.selected--
+	if l.cursor > 0 {
+		l.cursor--
 		l.ensureVisible()
 		l.notifyChange()
 	}
 }
 
 func (l *List) moveDown() {
-	if l.selected < len(l.items)-1 {
-		l.selected++
+	if l.cursor < len(l.items)-1 {
+		l.cursor++
 		l.ensureVisible()
 		l.notifyChange()
 	}
 }
 
 func (l *List) pageUp() {
-	l.selected -= l.height
-	if l.selected < 0 {
-		l.selected = 0
+	l.cursor -= l.height
+	if l.cursor < 0 {
+		l.cursor = 0
 	}
 	l.ensureVisible()
 	l.notifyChange()
 }
 
 func (l *List) pageDown() {
-	l.selected += l.height
-	if l.selected >= len(l.items) {
-		l.selected = len(l.items) - 1
+	l.cursor += l.height
+	if l.cursor >= len(l.items) {
+		l.cursor = len(l.items) - 1
 	}
 	l.ensureVisible()
 	l.notifyChange()
 }
 
 func (l *List) ensureVisible() {
-	if l.selected < l.offset {
-		l.offset = l.selected
+	if l.cursor < l.offset {
+		l.offset = l.cursor
 	}
-	if l.selected >= l.offset+l.height {
-		l.offset = l.selected - l.height + 1
+	if l.cursor >= l.offset+l.height {
+		l.offset = l.cursor - l.height + 1
 	}
 }
 
 func (l *List) notifyChange() {
-	if l.onChange != nil && l.selected < len(l.items) {
-		l.onChange(l.selected, l.items[l.selected])
+	if l.onChange != nil && l.cursor < len(l.items) {
+		l.onChange(l.cursor, l.items[l.cursor])
 	}
 }
 
